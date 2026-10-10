@@ -1,4 +1,4 @@
-import type { Listing } from './types';
+import type { Listing } from './core/types';
 import { escapeHtml, formatPrice, formatRooms, offerTypeLabels } from './format';
 
 interface Filters {
@@ -47,9 +47,9 @@ function filterListings(listings: Listing[], filters: Filters): Listing[] {
     if (filters.offerType && listing.offerType !== filters.offerType) return false;
     if (filters.minPrice !== null && (listing.price === null || listing.price < filters.minPrice)) return false;
     if (filters.maxPrice !== null && (listing.price === null || listing.price > filters.maxPrice)) return false;
-    if (filters.minRooms !== null && listing.rooms < filters.minRooms) return false;
-    if (filters.minArea !== null && listing.area < filters.minArea) return false;
-    if (filters.maxArea !== null && listing.area > filters.maxArea) return false;
+    if (filters.minRooms !== null && (listing.rooms === null || listing.rooms < filters.minRooms)) return false;
+    if (filters.minArea !== null && (listing.area === null || listing.area < filters.minArea)) return false;
+    if (filters.maxArea !== null && (listing.area === null || listing.area > filters.maxArea)) return false;
     return true;
   });
 }
@@ -68,8 +68,8 @@ function renderCard(listing: Listing): string {
         <h3 class="card-title">${escapeHtml(listing.title)}</h3>
         <div class="card-location">${escapeHtml(location)}</div>
         <div class="card-meta">
-          <span>${escapeHtml(listing.area)} m²</span>
-          <span>${escapeHtml(formatRooms(listing.rooms))}</span>
+          <span>${listing.area !== null ? `${escapeHtml(listing.area)} m²` : '—'}</span>
+          <span>${listing.rooms !== null ? escapeHtml(formatRooms(listing.rooms)) : '—'}</span>
           <span>${escapeHtml(offerTypeLabels[listing.offerType] ?? listing.offerType)}</span>
         </div>
       </div>

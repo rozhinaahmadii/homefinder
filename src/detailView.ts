@@ -1,4 +1,4 @@
-import type { Listing } from './types';
+import type { Listing } from './core/types';
 import { escapeHtml, formatFloor, formatPrice, formatRooms, offerTypeLabels } from './format';
 
 function renderNotFound(root: HTMLElement): void {
@@ -21,15 +21,15 @@ export function renderDetailView(root: HTMLElement, listing: Listing | undefined
     ? `<img src="${escapeHtml(listing.image)}" alt="${escapeHtml(listing.title)}" />`
     : `<div class="no-image">No photo</div>`;
   const location = [listing.address, listing.district, listing.city].filter(Boolean).join(', ');
-  const pricePerM2 = listing.price ? Math.round(listing.price / listing.area) : NaN;
+  const pricePerM2 = listing.price && listing.area ? Math.round(listing.price / listing.area) : null;
 
   const facts: [string, string][] = [
-    ['Area', `${listing.area} m²`],
-    ['Rooms', formatRooms(listing.rooms)],
+    ['Area', listing.area !== null ? `${listing.area} m²` : ''],
+    ['Rooms', listing.rooms !== null ? formatRooms(listing.rooms) : ''],
     ['Floor', formatFloor(listing)],
     ['Property type', listing.propertyType.charAt(0).toUpperCase() + listing.propertyType.slice(1)],
     ['Year built', listing.yearBuilt ? String(listing.yearBuilt) : ''],
-    ['Published', listing.publishedAt],
+    ['Published', listing.publishedAt ?? ''],
     ['Listing ID', String(listing.id)],
   ];
 
@@ -46,8 +46,8 @@ export function renderDetailView(root: HTMLElement, listing: Listing | undefined
           <p class="detail-location">${escapeHtml(location)}</p>
           <p class="detail-price">${escapeHtml(formatPrice(listing))}</p>
           ${
-            listing.offerType === 'sale' && Number.isFinite(pricePerM2)
-              ? `<p class="detail-price-m2">${pricePerM2.toLocaleString('pl-PL')} ${escapeHtml(listing.currency)}/m²</p>`
+            listing.offerType === 'sale' && pricePerM2 !== null
+              ? `<p class="detail-price-m2">${pricePerM2.toLocaleString('pl-PL')} ${escapeHtml(listing.currency ?? '')}/m²</p>`
               : ''
           }
 

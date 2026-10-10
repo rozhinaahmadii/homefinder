@@ -1,4 +1,4 @@
-import type { Listing } from './types';
+import type { Listing } from './core/types';
 
 export function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -10,16 +10,15 @@ export function escapeHtml(value: unknown): string {
 }
 
 export function formatPrice(listing: Listing): string {
-  if (listing.price === null || listing.price === undefined) {
+  if (listing.price === null) {
     return 'Price on request';
   }
-  const amount = typeof listing.price === 'number' ? listing.price.toLocaleString('pl-PL') : listing.price;
   const suffix = listing.offerType === 'rent' ? ' / month' : '';
-  return `${amount} ${listing.currency ?? ''}${suffix}`;
+  return `${listing.price.toLocaleString('pl-PL')} ${listing.currency ?? ''}${suffix}`;
 }
 
 export function formatFloor(listing: Listing): string {
-  if (listing.floor === undefined) return '';
+  if (listing.floor === null) return '';
   const floor = listing.floor === 0 ? 'Ground floor' : `Floor ${listing.floor}`;
   return listing.totalFloors ? `${floor} of ${listing.totalFloors}` : floor;
 }

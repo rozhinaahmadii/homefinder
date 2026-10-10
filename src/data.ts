@@ -1,4 +1,4 @@
-import type { Listing } from './types';
+import type { Listing } from './core/types';
 
 export async function loadListings(): Promise<Listing[]> {
   const response = await fetch('/data/listings.json');

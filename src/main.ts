@@ -1,5 +1,5 @@
 import './style.css';
-import type { Listing } from './types';
+import type { Listing } from './core/types';
 import { loadListings } from './data';
 import { renderListView } from './listView';
 import { renderDetailView } from './detailView';
