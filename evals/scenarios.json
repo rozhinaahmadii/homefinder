@@ -1,0 +1,5 @@
+  {
+    "id": "polish-city-name",
+    "query": "Dom z ogrodem w Warszawie do 3 mln",
+    "expect": { "minResults": 1, "idsWithin": [1010, 1070, 1103] }
+  }

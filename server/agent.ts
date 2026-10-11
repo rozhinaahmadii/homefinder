@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { FunctionCallingConfigMode, GoogleGenAI } from '@google/genai';
 import type { Content, FunctionDeclaration, Part } from '@google/genai';
 import { z } from 'zod';
 import { tools } from './tools';
@@ -10,8 +10,7 @@ How to work:
 1. Turn the request into search filters. If sale or rent is not stated, infer it from the budget (a few thousand = monthly rent, hundreds of thousands or more = sale) and record that as an assumption. If you cannot infer it, search both.
 2. Search. Use filters for city, offer type, price, rooms, area and features. A stated need is a feature filter: a dog or cat means "pets allowed", a car means "parking" or "garage", and so on. Apply it in the first search. Use the free-text query only for things the filters cannot express, with one or two words, because every word must match.
 3. The rooms filter is a minimum. If the person asks for an exact number of rooms, leave out results with more rooms.
-4. If there are fewer than 3 results, relax one constraint at a time: price by up to 15%, then drop one feature. Record what you relaxed. Never change the city or the offer type.
-5. Look at up to 3 of the best candidates with get_listing before recommending them. Request them together in one turn when you can.6. Finish by calling submit_shortlist. Always finish that way, also when nothing fits.
+4. If there are fewer than 3 results, relax one constraint at a time: price by up to 15%, then drop one feature. Record what you relaxed. Never change the city, the offer type or the property type, and never drop the price limit. Make at most 3 searches in total. If there is still nothing, stop and submit an empty list.5. Look at up to 3 of the best candidates with get_listing before recommending them. Request them together in one turn when you can.6. Finish by calling submit_shortlist. Always finish that way, also when nothing fits.
 
 Rules:
 - Recommend only listing ids returned by the tools in this conversation. Never invent an id.
@@ -55,8 +54,13 @@ export interface SessionSetup {
   tools: ToolSpec[];
 }
 
+export interface SendOptions {
+  onlyTool?: string;
+  note?: string;
+}
+
 export interface ModelSession {
-  send(input: SessionInput): Promise<ToolCall[]>;
+  send(input: SessionInput, options?: SendOptions): Promise<ToolCall[]>;
 }
 
 export interface ModelClient {
@@ -99,6 +103,11 @@ const ShortlistSchema = z.object({
   message: z.string().describe('Short answer to the person, in the language of the request.'),
 });
 type Shortlist = z.infer<typeof ShortlistSchema>;
+
+const FINAL_CALL: SendOptions = {
+  onlyTool: SUBMIT_TOOL_NAME,
+  note: 'This is your last step. Call submit_shortlist now with what you have, or with an empty list and a message explaining why.',
+};
 
 const SUBMIT_DESCRIPTION =
   'Finish the conversation by submitting the final shortlist. Call it exactly once, as the last step, also when nothing fits.';
@@ -164,14 +173,27 @@ function createGeminiClient(apiKey: string): ModelClient {
         parametersJsonSchema: spec.parameters,
       }));
       return {
-        async send(input) {
-          contents.push({ role: 'user', parts: toParts(input) });
+        async send(input, { onlyTool, note } = {}) {
+          const parts = toParts(input);
+          if (note) parts.push({ text: note });
+          contents.push({ role: 'user', parts });
+          const offered = onlyTool
+            ? functionDeclarations.filter((d) => d.name === onlyTool)
+            : functionDeclarations;
           const response = await ai.models.generateContent({
             model,
             contents,
             config: {
               systemInstruction: system,
-              tools: [{ functionDeclarations }],
+              tools: [{ functionDeclarations: offered }],
+              toolConfig: onlyTool
+                ? {
+                    functionCallingConfig: {
+                      mode: FunctionCallingConfigMode.ANY,
+                      allowedFunctionNames: [onlyTool],
+                    },
+                  }
+                : undefined,
               temperature: 0,
             },
           });
@@ -256,7 +278,8 @@ export async function runAssistant(
   let modelCalls = 0;
 
   while (modelCalls < MAX_MODEL_CALLS) {
-    const calls = await session.send(input);
+    const isLastCall = modelCalls === MAX_MODEL_CALLS - 1;
+    const calls = await session.send(input, isLastCall ? FINAL_CALL : undefined);
     modelCalls++;
     if (calls.length === 0) break;
 
