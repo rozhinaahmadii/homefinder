@@ -1,5 +1,19 @@
 # Data Audit Findings & Normalization Rules
 
+## How the pipeline works
+
+`npm run ingest` runs the pipeline once, from the raw JSON to the database:
+
+1. Read the raw file.
+2. Check each record’s shape/RawListingSchema
+3. Normalize, and reject anything that still isn’t valid.
+4. Mark duplicates.
+5. Flag price outliers.
+6. Write everything in one transaction.
+7. Print a summary.
+
+## Findings and rules
+
 Run audit: `npx tsx scripts/audit.ts`
 
 | Issue | Listing IDs | Rule |
@@ -28,5 +42,30 @@ Run audit: `npx tsx scripts/audit.ts`
 | Image missing or file not found | 1062, 1072, 1114 | Fix: normalize missing/empty to null, show placeholder, flag `IMAGE_MISSING` |
 | Description empty or thin | 1069, 1072 | Flag `DESCRIPTION_THIN` |
 | District missing | 1114 | Flag `LOCATION_INCOMPLETE`; do not infer from title |
-| Price per m² outliers | 1019, 1045, 1113 | Flag `PRICE_IMPLAUSIBLE`; exclude from median stats |
-| Duplicate listings | 1016/1059, 1027/1084, 1050/1111 | Keep newest as canonical; mark older records with `duplicateOf` and hide from search |
+| Price per m² outliers | 1019, 1045 | Flag `PRICE_IMPLAUSIBLE`; exclude from median stats. 1113 is excluded here: its area is flagged, so its price per m² is not meaningful |
+| Duplicate listings | 1016 → 1059, 1027 → 1084, 1111 → 1050 | Newest is canonical; on a tie, lowest id. Others get `duplicateOf` and are hidden from search |
+
+## Result (npm run ingest)
+
+100 read, 100 stored, 0 rejected. 3 duplicates marked.
+15 listings carry quality flags (19 flags, 13 codes):
+
+Duplicates (3):
+  1016 → 1059
+  1027 → 1084
+  1111 → 1050
+
+Flags by code:
+  AREA_IMPLAUSIBLE:                  1113
+  AREA_MISMATCH_DESCRIPTION:         1067
+  CURRENCY_NOT_PLN:                  1095
+  DATE_IN_FUTURE:                    1078
+  DESCRIPTION_THIN:                  1069, 1072
+  FEATURE_CONTRADICTS_DESCRIPTION:   1055
+  FLOOR_EXCEEDS_TOTAL:               1044
+  FLOOR_MISMATCH_DESCRIPTION:        1044, 1061, 1112
+  IMAGE_MISSING:                     1062, 1072, 1114
+  LOCATION_INCOMPLETE:               1114
+  PRICE_IMPLAUSIBLE:                 1019, 1045
+  ROOMS_MISMATCH_TITLE:              1017
+  ROOMS_MISSING:                     1112

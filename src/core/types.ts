@@ -3,7 +3,6 @@ import { z } from 'zod';
 export const OFFER_TYPES = ['sale', 'rent'] as const;
 export const PROPERTY_TYPES = ['apartment', 'house', 'studio'] as const;
 export const FLAG_CODES = [
-  'PRICE_MISSING',
   'PRICE_IMPLAUSIBLE',
   'CURRENCY_NOT_PLN',
   'AREA_IMPLAUSIBLE',

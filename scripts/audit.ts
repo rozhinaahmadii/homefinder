@@ -552,12 +552,13 @@ note(
 
 sec(9, "SUMMARY TABLE  ← paste into docs/DATA_AUDIT.md");
 console.log();
-console.log("| Issue | Listing IDs | Recommended Rule |");
-console.log("|---|---|---|");
+console.log("| Issue | Listing IDs |");
+console.log("|---|---|");
 for (const f of findings) {
   const idCol =
     f.ids.length <= 10
       ? f.ids.join(", ")
       : f.ids.slice(0, 10).join(", ") + ` … +${f.ids.length - 10} more`;
-  console.log(`| ${f.issue} | ${idCol} | ${f.rule} |`);
+  console.log(`| ${f.issue} | ${idCol} |`);
 }
+console.log('Rules are decided in docs/DATA_AUDIT.md');
