@@ -235,6 +235,15 @@ select:focus {
 .card-price {
   font-size: 1.15rem;
   font-weight: 700;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.card-price > span {
+  white-space: nowrap;
 }
 
 .card-title {
@@ -312,6 +321,7 @@ select:focus {
   color: var(--color-primary-dark);
   font-size: 0.8rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .detail-location {
@@ -401,6 +411,50 @@ select:focus {
 
 .contact .button {
   margin-top: 12px;
+}
+
+.badge-muted {
+  background: var(--color-border);
+  color: var(--color-muted);
+}
+
+.flag-box {
+  display: block;
+  margin-top: 0;
+}
+
+.flag-list {
+  margin: 0;
+  padding-inline-start: 20px;
+}
+
+.price-hint {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  margin: 4px 0 0;
+}
+
+.checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.checkbox-label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.checkbox-label input[type='checkbox'] {
+  width: auto;
+  flex-shrink: 0;
 }
 
 .not-found {

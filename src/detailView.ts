@@ -1,5 +1,6 @@
 import type { Listing } from './core/types';
 import { escapeHtml, formatFloor, formatPrice, formatRooms, offerTypeLabels } from './format';
+import { flagMessages } from './flagMessages';
 
 function renderNotFound(root: HTMLElement): void {
   root.innerHTML = `
@@ -11,7 +12,7 @@ function renderNotFound(root: HTMLElement): void {
   `;
 }
 
-export function renderDetailView(root: HTMLElement, listing: Listing | undefined): void {
+export function renderDetailView(root: HTMLElement, listing: Listing | null): void {
   if (!listing) {
     renderNotFound(root);
     return;
@@ -21,7 +22,6 @@ export function renderDetailView(root: HTMLElement, listing: Listing | undefined
     ? `<img src="${escapeHtml(listing.image)}" alt="${escapeHtml(listing.title)}" />`
     : `<div class="no-image">No photo</div>`;
   const location = [listing.address, listing.district, listing.city].filter(Boolean).join(', ');
-  const pricePerM2 = listing.price && listing.area ? Math.round(listing.price / listing.area) : null;
 
   const facts: [string, string][] = [
     ['Area', listing.area !== null ? `${listing.area} m²` : ''],
@@ -46,8 +46,8 @@ export function renderDetailView(root: HTMLElement, listing: Listing | undefined
           <p class="detail-location">${escapeHtml(location)}</p>
           <p class="detail-price">${escapeHtml(formatPrice(listing))}</p>
           ${
-            listing.offerType === 'sale' && pricePerM2 !== null
-              ? `<p class="detail-price-m2">${pricePerM2.toLocaleString('pl-PL')} ${escapeHtml(listing.currency ?? '')}/m²</p>`
+            listing.offerType === 'sale' && listing.pricePerM2 !== null
+              ? `<p class="detail-price-m2">${listing.pricePerM2.toLocaleString('pl-PL')} ${escapeHtml(listing.currency ?? '')}/m²</p>`
               : ''
           }
 
@@ -58,13 +58,24 @@ export function renderDetailView(root: HTMLElement, listing: Listing | undefined
               .join('')}
           </dl>
 
+          ${
+            listing.flags.length
+              ? `<h2>Things to verify</h2>
+                 <div class="facts flag-box">
+                   <ul class="flag-list">
+                     ${listing.flags.map((f) => `<li>${escapeHtml(flagMessages[f.code])}</li>`).join('')}
+                   </ul>
+                 </div>`
+              : ''
+          }
+
           <h2>Description</h2>
           <p class="description">${escapeHtml(listing.description || 'No description provided.')}</p>
 
           ${
             listing.features.length
               ? `<h2>Features</h2>
-                 <ul class="features">${listing.features.map((feature) => `<li>${escapeHtml(feature)}</li>`).join('')}</ul>`
+                 <ul class="features">${listing.features.map((f) => `<li>${escapeHtml(f)}</li>`).join('')}</ul>`
               : ''
           }
         </div>

@@ -1,39 +1,40 @@
 import './style.css';
-import type { Listing } from './core/types';
-import { loadListings } from './data';
+import { fetchListing } from './data';
 import { renderListView } from './listView';
 import { renderDetailView } from './detailView';
 import { escapeHtml } from './format';
 
 const app = document.querySelector<HTMLElement>('#app')!;
-let listings: Listing[] = [];
 let listScrollY = 0;
 let currentView: 'list' | 'detail' | null = null;
 
+async function showDetail(idStr: string): Promise<void> {
+  if (currentView === 'list') listScrollY = window.scrollY;
+  currentView = 'detail';
+  app.innerHTML = '<p class="status">Loading…</p>';
+  try {
+    const listing = await fetchListing(Number(idStr));
+    renderDetailView(app, listing);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    app.innerHTML = `<p class="status error">Could not load listing. ${escapeHtml(msg)}</p>`;
+  }
+  window.scrollTo(0, 0);
+}
+
 function route(): void {
   const match = location.hash.match(/^#\/listings\/(.+)$/);
-
   if (match) {
-    if (currentView === 'list') listScrollY = window.scrollY;
-    const id = decodeURIComponent(match[1]);
-    renderDetailView(app, listings.find((listing) => String(listing.id) === id));
-    currentView = 'detail';
-    window.scrollTo(0, 0);
+    void showDetail(decodeURIComponent(match[1]));
   } else {
-    renderListView(app, listings);
-    if (currentView === 'detail') window.scrollTo(0, listScrollY);
+    const wasDetail = currentView === 'detail';
+    const savedScroll = listScrollY;
     currentView = 'list';
+    void renderListView(app).then(() => {
+      if (wasDetail) window.scrollTo(0, savedScroll);
+    });
   }
 }
 
-app.innerHTML = '<p class="status">Loading listings…</p>';
-
-loadListings()
-  .then((data) => {
-    listings = data;
-    route();
-    window.addEventListener('hashchange', route);
-  })
-  .catch((error: Error) => {
-    app.innerHTML = `<p class="status error">Could not load listings. ${escapeHtml(error.message)}</p>`;
-  });
+route();
+window.addEventListener('hashchange', route);
