@@ -93,6 +93,7 @@ describe('runAssistant', () => {
     expect(inputs[0]).toEqual({ text: '2 rooms in Kraków under 800k' });
     expect(setups[0].model).toBe('test-model');
     expect(result.modelCalls).toBe(3);
+    expect(result.completed).toBe(true);
   });
 
   it('attaches flag codes from the store to each shortlisted listing', async () => {
@@ -132,6 +133,7 @@ describe('runAssistant', () => {
     expect(result.message).toMatch(/could not be completed/);
     expect(result.trace).toHaveLength(8);
     expect(result.modelCalls).toBe(8);
+    expect(result.completed).toBe(false);
   });
 
   it('a model that keeps searching gets only submit_shortlist on the final call and its submission is returned', async () => {
@@ -147,6 +149,7 @@ describe('runAssistant', () => {
     expect(result.listings.map((l) => l.id)).toEqual([1101]);
     expect(result.message).toBe('Done');
     expect(result.modelCalls).toBe(8);
+    expect(result.completed).toBe(true);
   });
 
   it('passes a tool error object back to the model and continues', async () => {
@@ -197,6 +200,7 @@ describe('runAssistant', () => {
     expect(result.message).toMatch(/could not be completed/);
     expect(result.trace).toEqual([]);
     expect(result.modelCalls).toBe(1);
+    expect(result.completed).toBe(false);
   });
 
   it('throws a clear error when GEMINI_MODEL is missing', async () => {

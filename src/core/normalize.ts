@@ -73,6 +73,19 @@ const CITY_MAP = new Map<string, string>([
   ['wroclaw', 'Wrocław'],
   ['poznan', 'Poznań'],
   ['lodz', 'Łódź'],
+  ['warszawa', 'Warsaw'],
+  ['cracow', 'Kraków'],
+  ['krakau', 'Kraków'],
+  ['danzig', 'Gdańsk'],
+  ['breslau', 'Wrocław'],
+  ['posen', 'Poznań'],
+  // Polish locative forms, as in "w Warszawie"
+  ['warszawie', 'Warsaw'],
+  ['krakowie', 'Kraków'],
+  ['gdansku', 'Gdańsk'],
+  ['wroclawiu', 'Wrocław'],
+  ['poznaniu', 'Poznań'],
+  ['lodzi', 'Łódź'],
 ]);
 
 export function normalizeCity(raw: string): string {

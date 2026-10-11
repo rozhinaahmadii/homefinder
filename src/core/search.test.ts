@@ -92,6 +92,25 @@ describe('searchListings', () => {
     });
   });
 
+  describe('city aliases', () => {
+    const idsFor = (city: string) => searchListings(all, { city }).items.map((l) => l.id);
+
+    it('city "Warszawa" returns the same listings as city "Warsaw"', () => {
+      expect(idsFor('Warsaw').length).toBeGreaterThan(0);
+      expect(idsFor('Warszawa')).toEqual(idsFor('Warsaw'));
+    });
+
+    it('city "Warszawie" returns the same listings as city "Warsaw"', () => {
+      expect(idsFor('Warszawie')).toEqual(idsFor('Warsaw'));
+    });
+
+    it('query "warszawa Mokotow" finds 1042', () => {
+      const { items } = searchListings(all, { query: 'warszawa Mokotow' });
+      expect(items.map((l) => l.id)).toContain(1042);
+      for (const l of items) expect(l.city).toBe('Warsaw');
+    });
+  });
+
   describe('city / district filter', () => {
     it('city "krakow" (diacritic-insensitive) includes 1037 and 1052', () => {
       const { items } = searchListings(all, { city: 'krakow' });

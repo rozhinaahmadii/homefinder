@@ -1,4 +1,4 @@
-import { stripDiacritics, normalizeFeatures } from './normalize';
+import { stripDiacritics, normalizeCity, normalizeFeatures } from './normalize';
 import type { Listing, SearchFilters } from './types';
 
 function normalize(s: string): string {
@@ -16,7 +16,8 @@ function matchesQuery(listing: Listing, terms: string[]): boolean {
       listing.features.join(' '),
     ].join(' '),
   );
-  return terms.every((term) => haystack.includes(term));
+  const city = normalize(listing.city);
+  return terms.every((term) => haystack.includes(term) || normalize(normalizeCity(term)) === city);
 }
 
 function compareNullLast<T>(
@@ -92,6 +93,8 @@ export function searchListings(
   const normalizedFeatureFilter =
     features !== undefined && features.length > 0 ? normalizeFeatures(features) : undefined;
 
+  const cityFilter = city !== undefined ? normalize(normalizeCity(city)) : undefined;
+
   const priceFilterActive = minPrice !== undefined || maxPrice !== undefined;
 
   const filtered = listings.filter((l) => {
@@ -99,7 +102,7 @@ export function searchListings(
 
     if (terms.length > 0 && !matchesQuery(l, terms)) return false;
 
-    if (city !== undefined && normalize(l.city) !== normalize(city)) return false;
+    if (cityFilter !== undefined && normalize(l.city) !== cityFilter) return false;
 
     if (district !== undefined) {
       if (!l.district || normalize(l.district) !== normalize(district)) return false;

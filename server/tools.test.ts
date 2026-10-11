@@ -5,7 +5,7 @@ vi.hoisted(() => {
 });
 
 import { readFileSync } from 'node:fs';
-import { createSchema, insertListings } from './db';
+import { createSchema, getAllListings, insertListings } from './db';
 import { RawListingSchema } from '../src/core/types';
 import { normalizeListing } from '../src/core/normalize';
 import { markDuplicates } from '../src/core/dedupe';
@@ -121,6 +121,27 @@ describe('search_listings handler', () => {
     const result = searchTool.handler({ offerType: 'unknown' }) as ErrorResult;
     expect(result.error).toBeTruthy();
     expect(Array.isArray(result.issues)).toBe(true);
+  });
+
+  it('an unknown city returns the normal result plus a hint listing the known cities', () => {
+    const result = searchTool.handler({ city: 'Berlin' }) as SearchResult & { hint?: string };
+    const known = [...new Set(getAllListings().filter((l) => l.duplicateOf === null).map((l) => l.city))].sort();
+    expect(known.length).toBeGreaterThan(1);
+    expect(result.total).toBe(0);
+    expect(result.items).toEqual([]);
+    expect(result.hint).toBe(`Unknown city 'Berlin'. Known cities: ${known.join(', ')}.`);
+  });
+
+  it('a known city or one of its aliases returns no hint', () => {
+    expect(searchTool.handler({ city: 'krakow' })).not.toHaveProperty('hint');
+    expect(searchTool.handler({ city: 'Warszawie' })).not.toHaveProperty('hint');
+    expect(searchTool.handler({})).not.toHaveProperty('hint');
+  });
+
+  it('the description names every known city', () => {
+    for (const city of new Set(getAllListings().map((l) => l.city))) {
+      expect(searchTool.description).toContain(city);
+    }
   });
 });
 

@@ -181,6 +181,7 @@ const AGENT_RESULT: AssistantResult = {
   dropped: [],
   trace: [{ name: 'search_listings', input: { city: 'Kraków' } }],
   modelCalls: 2,
+  completed: true,
 };
 
 function ask(target: typeof app, body: unknown): Promise<Response> | Response {

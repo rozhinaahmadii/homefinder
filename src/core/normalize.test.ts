@@ -189,6 +189,34 @@ describe('normalizeCity', () => {
     expect(normalizeCity('berlin')).toBe('Berlin');
   });
 
+  it.each([
+    ['Warszawa', 'Warsaw'],
+    ['Cracow', 'Kraków'],
+    ['Krakau', 'Kraków'],
+    ['Danzig', 'Gdańsk'],
+    ['Breslau', 'Wrocław'],
+    ['Posen', 'Poznań'],
+  ])('maps the alias %s to %s', (alias, canonical) => {
+    expect(normalizeCity(alias)).toBe(canonical);
+  });
+
+  it.each([
+    ['Warszawie', 'Warsaw'],
+    ['Krakowie', 'Kraków'],
+    ['Gdańsku', 'Gdańsk'],
+    ['Wrocławiu', 'Wrocław'],
+    ['Poznaniu', 'Poznań'],
+    ['Łodzi', 'Łódź'],
+  ])('maps the Polish locative %s to %s', (form, canonical) => {
+    expect(normalizeCity(form)).toBe(canonical);
+  });
+
+  it('matches aliases case- and diacritic-insensitively', () => {
+    expect(normalizeCity('WARSZAWA')).toBe('Warsaw');
+    expect(normalizeCity(' wroclawiu ')).toBe('Wrocław');
+    expect(normalizeCity('lodzi')).toBe('Łódź');
+  });
+
   it('title-cases a multi-word unknown city', () => {
     expect(normalizeCity('nowy sącz')).toBe('Nowy Sącz');
   });

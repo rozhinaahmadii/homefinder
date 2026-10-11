@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { SearchFiltersSchema } from '../src/core/types';
 import { searchListings } from '../src/core/search';
+import { normalizeCity, stripDiacritics } from '../src/core/normalize';
+import type { Listing } from '../src/core/types';
 import { getAllListings, getListingById } from './db';
 
 export interface Tool {
@@ -14,11 +16,21 @@ const SearchListingsInputSchema = SearchFiltersSchema.omit({ limit: true });
 
 const GetListingInputSchema = z.object({ id: z.number().int() });
 
+function foldCity(city: string): string {
+  return stripDiacritics(normalizeCity(city)).toLowerCase();
+}
+
+function unknownCityHint(city: string, listings: Listing[]): string | undefined {
+  const known = [...new Set(listings.filter((l) => l.duplicateOf === null).map((l) => l.city))].sort();
+  if (known.some((k) => foldCity(k) === foldCity(city))) return undefined;
+  return `Unknown city '${city}'. Known cities: ${known.join(', ')}.`;
+}
+
 export const tools: Tool[] = [
   {
     name: 'search_listings',
     description:      
-      'Search real estate listings in Polish cities. Filter by city, district, offer type (sale or rent), property type, price range in PLN, minimum rooms, area range, and features such as "balcony" or "pets allowed". The free-text query matches words in the title, description and location; every word must match. Returns the total number of matches and at most 10 summaries, newest first unless a sort is given. If total is larger than the number shown, add filters to narrow the search. Each summary includes flag codes: a non-empty flags list means some data on that listing is doubtful and should be verified with get_listing before recommending it. Duplicate listings are never returned.',
+      'Search real estate listings in Polish cities. Known cities: Gdańsk, Kraków, Łódź, Poznań, Warsaw, Wrocław. Filter by city, district, offer type (sale or rent), property type, price range in PLN, minimum rooms, area range, and features such as "balcony" or "pets allowed". The free-text query matches words in the title, description and location; every word must match. Returns the total number of matches and at most 10 summaries, newest first unless a sort is given. If total is larger than the number shown, add filters to narrow the search. Each summary includes flag codes: a non-empty flags list means some data on that listing is doubtful and should be verified with get_listing before recommending it. Duplicate listings are never returned.',
 
     schema: SearchListingsInputSchema,
     handler(input: unknown) {
@@ -26,8 +38,12 @@ export const tools: Tool[] = [
       if (!result.success) {
         return { error: 'Invalid input', issues: result.error.issues };
       }
-      const { total, items } = searchListings(getAllListings(), { ...result.data, limit: 10 });
+      const listings = getAllListings();
+      const { total, items } = searchListings(listings, { ...result.data, limit: 10 });
+      const hint =
+        result.data.city !== undefined ? unknownCityHint(result.data.city, listings) : undefined;
       return {
+        ...(hint !== undefined ? { hint } : {}),
         total,
         shown: items.length,
         items: items.map((l) => ({

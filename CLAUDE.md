@@ -35,7 +35,7 @@ src/                     frontend: vanilla TS views, talks to the API only
 src/core/                pure shared logic: types, normalize, dedupe, ingest, search (no I/O)
 server/                  db.ts, api.ts, tools.ts, mcp.ts, agent.ts
 evals/                   scenarios.json + run.ts
-docs/                    DECISIONS.md, DATA_AUDIT.md, AI_LOG.md
+docs/                    DECISIONS.md, DATA_AUDIT.md, AI_LOG.md, EVAL_RESULTS.md
 ```
 
 Data flow: raw JSON -> ingest (validate, normalize, flag, dedupe) -> SQLite -> src/core/search -> API, MCP server and agent.

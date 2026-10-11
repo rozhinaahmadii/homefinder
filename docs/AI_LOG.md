@@ -151,6 +151,44 @@ That run used exactly as many model calls as my limit allowed, so I raised the l
 
 One rule in the system prompt comes straight from the MCP test: "rooms is a minimum; if the person asks for an exact number, leave out bigger ones".
 
+## Step 12: evals
+
+Nine scenarios in evals/scenarios.json. Each one is a realistic request plus rules
+the answer has to meet. The rules are checked by code against the database, not by
+another model. Some rules apply to every scenario: the ids are real and not
+duplicates, at most five listings, any flagged listing is named in a warning, and
+the agent actually finished.
+
+Most scenarios come from things that went wrong when I tested by hand: the dog
+question, the Warsaw house, the cheapest flat in Warsaw.
+
+**First full run:** 8 of 9 passed, 35 model calls.
+
+**What failed, and what passed but should not have:**
+
+- `polish-city-name` (failed): a request in Polish returned nothing. I guessed the
+  agent had passed the city in its inflected form. The trace showed it searched for
+  "Warszawa" every time and followed the loosening rules correctly, but every
+  search came back empty. Cause: search code. The city alias fix I thought I had
+  made earlier was never applied. Fixed in the search (aliases, including the
+  Polish forms used after "w") and in the tool (a hint listing the known cities).
+
+- `suspicious-price` (passed with a poor answer): "the cheapest flat to buy in
+  Warsaw" left out the two cheapest unflagged listings, both studios, because the
+  agent filtered on property type "apartment". My rules did not catch it. I changed
+  the system prompt ("flat" includes studios), made the scenario require listing
+  1060, and added a `mustInclude` check to the grader.
+
+**After the fixes:** 9 of 9, 31 model calls, on gemini-3.6-flash.
+Results are in docs/EVAL_RESULTS.md.
+
+**What I take from it:**
+- The eval caught a fix I believed was already done.
+- A passing eval only means the answer met the rules I wrote. I still read the answers.
+- I read the trace before changing anything; my first guess was wrong again.
+- What the checks cannot see: whether the written reasons are good, and whether a
+  different shortlist would have been better.
+  
 ### Testing the assistant in the browser
 
 I tried three requests in the panel.
@@ -165,16 +203,37 @@ I tried three requests in the panel.
    - the agent's last step is a forced answer, so it can never end without one
 
    I also limited it to three searches and stopped it from dropping the price limit or the property type, which it did in that trace although my rules never allowed it.
+   After the fixes it answers in a few steps: no houses in Warsaw under 1 million, and the closest is the one in Ursynów at 1.72 million. I added a rule that lets it make one extra search without the price limit only to report what the closest option costs.
 
-**Two provider problems on the way:** a 503 from Gemini (overloaded) and then a 429 (free-tier daily quota: 20 requests per model per day, about three assistant questions). The app showed a plain error both times and the rest of the site kept working. I added a short retry for temporary errors and moved to a paid tier so the evals can run.
+**Two provider problems on the way:** a 503 from Gemini (overloaded) and then a 429 (free-tier daily quota: 20 requests per model per day, about three assistant questions).Added Billing.
 
 What I take from this: read the trace before blaming the model. My first guess about test 3 was wrong.
 
 ## Step 12: evals
 
-(To fill in after running them: pass rate, what failed, whether the cause was the prompt, a tool description, the code or my own scenario, and what I changed.)
+Nine scenarios in evals/scenarios.json. Each is a realistic request plus rules the
+answer has to meet. The rules are checked by code against the database, not by
+another model. Some rules apply to every scenario: the ids are real and not
+duplicates, at most five listings, any flagged listing is named in a warning,
+and the agent actually finished.
 
----
+Most scenarios come from things that went wrong when I tested by hand: the dog
+question (overclaiming), the Warsaw house (Polish city name), the cheapest flat
+in Warsaw (a listing with a suspicious price).
+
+**First run:** X of 9 passed.
+
+**What failed and why:**
+
+- `<scenario id>`: what the agent did. Cause: [system prompt / tool description /
+  search code / my expectation was wrong]. What I changed.
+- ...
+
+**After the fixes:** X of 9 passed, about N model calls for the full run, on
+<model id>.
+
+**What I noticed:** [anything that passed once and failed once; anything the
+checks cannot see]
 
 ## What I learned about working this way
 
