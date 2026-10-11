@@ -11,7 +11,7 @@ import { createSchema, insertListings } from './db';
 import { ingestRecords } from '../src/core/ingest';
 import { tools } from './tools';
 import { runAssistant } from './agent';
-import type { ModelClient, SessionInput, SessionSetup, ToolCall } from './agent';
+import type { ModelClient, SendOptions, SessionInput, SessionSetup, ToolCall } from './agent';
 
 const CTX = { today: '2026-10-10', imageFiles: new Set<string>() };
 
@@ -28,18 +28,20 @@ afterEach(() => {
 function fakeClient(script: ToolCall[][]) {
   const inputs: SessionInput[] = [];
   const setups: SessionSetup[] = [];
+  const options: (SendOptions | undefined)[] = [];
   const client: ModelClient = {
     startSession(setup) {
       setups.push(setup);
       return {
-        async send(input) {
+        async send(input, sendOptions) {
           inputs.push(input);
+          options.push(sendOptions);
           return script[inputs.length - 1] ?? [];
         },
       };
     },
   };
-  return { client, inputs, setups };
+  return { client, inputs, setups, options };
 }
 
 function search(args: Record<string, unknown>): ToolCall {
@@ -129,6 +131,21 @@ describe('runAssistant', () => {
     expect(result).toMatchObject(EMPTY);
     expect(result.message).toMatch(/could not be completed/);
     expect(result.trace).toHaveLength(8);
+    expect(result.modelCalls).toBe(8);
+  });
+
+  it('a model that keeps searching gets only submit_shortlist on the final call and its submission is returned', async () => {
+    const searches = Array.from({ length: 7 }, () => [search({ city: 'Kraków' })]);
+    const { client, options } = fakeClient([...searches, [submit([{ id: 1101, reason: 'Fits.' }])]]);
+
+    const result = await runAssistant('flat in Kraków', { client });
+
+    expect(options).toHaveLength(8);
+    expect(options.slice(0, 7).every((o) => o === undefined)).toBe(true);
+    expect(options[7]?.onlyTool).toBe('submit_shortlist');
+    expect(options[7]?.note).toMatch(/submit_shortlist now/);
+    expect(result.listings.map((l) => l.id)).toEqual([1101]);
+    expect(result.message).toBe('Done');
     expect(result.modelCalls).toBe(8);
   });
 

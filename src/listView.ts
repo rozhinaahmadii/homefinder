@@ -2,6 +2,7 @@ import type { Listing, SearchFilters } from './core/types';
 import type { MetaResponse } from './data';
 import { fetchListings, fetchMeta } from './data';
 import { escapeHtml, formatPrice, formatRooms, offerTypeLabels } from './format';
+import { mountAssistant } from './assistant';
 
 const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: 'newest', label: 'Newest' },
@@ -244,8 +245,11 @@ export async function renderListView(root: HTMLElement): Promise<void> {
         </form>
       </aside>
       <section class="results">
-        <p class="results-count" id="results-count"></p>
-        <div class="grid" id="results"></div>
+        ${meta.assistantEnabled ? '<div class="not-found assistant" id="assistant"></div>' : ''}
+        <div id="list-results">
+          <p class="results-count" id="results-count"></p>
+          <div class="grid" id="results"></div>
+        </div>
       </section>
     </div>
   `;
@@ -267,6 +271,17 @@ export async function renderListView(root: HTMLElement): Promise<void> {
       void doSearch(form, root);
     }),
   );
+
+  const assistantEl = root.querySelector<HTMLElement>('#assistant');
+  if (assistantEl) {
+    mountAssistant(assistantEl, {
+      renderCard,
+      setListHidden(hidden) {
+        root.querySelector<HTMLElement>('.filters')!.hidden = hidden;
+        root.querySelector<HTMLElement>('#list-results')!.hidden = hidden;
+      },
+    });
+  }
 
   void doSearch(form, root);
 }

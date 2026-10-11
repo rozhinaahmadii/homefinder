@@ -1,11 +1,12 @@
-import { vi, describe, it, expect, beforeAll } from 'vitest';
+import { vi, describe, it, expect, beforeAll, afterEach } from 'vitest';
 
 vi.hoisted(() => {
   process.env.DB_PATH = ':memory:';
 });
 
 import { readFileSync } from 'node:fs';
-import { app } from './app';
+import { app, createApp } from './app';
+import type { AssistantResult } from './agent';
 import { createSchema, insertListings } from './db';
 import { RawListingSchema } from '../src/core/types';
 import type { Listing } from '../src/core/types';
@@ -25,6 +26,11 @@ beforeAll(() => {
 
   createSchema();
   insertListings(listings.map((listing) => ({ listing, raw: {} })));
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
 
 describe('GET /api/health', () => {
@@ -139,5 +145,102 @@ describe('GET /api/meta', () => {
     expect(body.cities).toContain('Łódź');
     // only 3 distinct cities: Kraków, Łódź, Warsaw
     expect(body.cities).toHaveLength(3);
+  });
+
+  it('reports assistantEnabled true when both variables are set', async () => {
+    configureAssistant();
+    const res = await app.request('/api/meta');
+    const body = (await res.json()) as { assistantEnabled: boolean };
+    expect(body.assistantEnabled).toBe(true);
+  });
+
+  it('reports assistantEnabled false when either variable is missing', async () => {
+    configureAssistant();
+    vi.stubEnv('GEMINI_API_KEY', undefined);
+    const withoutKey = (await (await app.request('/api/meta')).json()) as { assistantEnabled: boolean };
+    expect(withoutKey.assistantEnabled).toBe(false);
+
+    configureAssistant();
+    vi.stubEnv('GEMINI_MODEL', undefined);
+    const withoutModel = (await (await app.request('/api/meta')).json()) as { assistantEnabled: boolean };
+    expect(withoutModel.assistantEnabled).toBe(false);
+  });
+});
+
+function configureAssistant(): void {
+  vi.stubEnv('GEMINI_API_KEY', 'test-key');
+  vi.stubEnv('GEMINI_MODEL', 'test-model');
+}
+
+const AGENT_RESULT: AssistantResult = {
+  listings: [{ id: 1037, reason: 'Fits.', flags: [] }],
+  assumptions: ['Assumed sale.'],
+  relaxed: [],
+  warnings: [],
+  message: 'One match.',
+  dropped: [],
+  trace: [{ name: 'search_listings', input: { city: 'Kraków' } }],
+  modelCalls: 2,
+};
+
+function ask(target: typeof app, body: unknown): Promise<Response> | Response {
+  return target.request('/api/assistant', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+describe('POST /api/assistant', () => {
+  const fakeApp = createApp(async () => AGENT_RESULT);
+
+  it('returns 503 when GEMINI_API_KEY is not set', async () => {
+    configureAssistant();
+    vi.stubEnv('GEMINI_API_KEY', undefined);
+    const res = await ask(fakeApp, { message: 'flat in Kraków' });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'Assistant is not configured' });
+  });
+
+  it('returns 503 when GEMINI_MODEL is not set', async () => {
+    configureAssistant();
+    vi.stubEnv('GEMINI_MODEL', undefined);
+    const res = await ask(fakeApp, { message: 'flat in Kraków' });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'Assistant is not configured' });
+  });
+
+  it('returns 400 for an empty message', async () => {
+    configureAssistant();
+    const res = await ask(fakeApp, { message: '' });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 for a message over 500 characters', async () => {
+    configureAssistant();
+    const res = await ask(fakeApp, { message: 'a'.repeat(501) });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 200 with the agent result and no trace field', async () => {
+    configureAssistant();
+    const res = await ask(fakeApp, { message: 'flat in Kraków' });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).not.toHaveProperty('trace');
+    const { trace: _trace, ...expected } = AGENT_RESULT;
+    expect(body).toEqual(expected);
+  });
+
+  it('returns 502 with a plain error when the agent throws', async () => {
+    configureAssistant();
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failingApp = createApp(async () => {
+      throw new Error('quota exceeded for key abc');
+    });
+    const res = await ask(failingApp, { message: 'flat in Kraków' });
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: 'The assistant could not answer. Try again.' });
+    expect(logged).toHaveBeenCalled();
   });
 });

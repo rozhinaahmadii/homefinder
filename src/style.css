@@ -464,6 +464,23 @@ select:focus {
   padding: 24px;
 }
 
+.assistant {
+  margin-bottom: 16px;
+}
+
+.assistant-form {
+  display: flex;
+  gap: 8px;
+}
+
+.assistant-output > * {
+  margin: 12px 0 0;
+}
+
+.layout:has(> .filters[hidden]) {
+  grid-template-columns: 1fr;
+}
+
 @media (max-width: 860px) {
   .layout {
     grid-template-columns: 1fr;
