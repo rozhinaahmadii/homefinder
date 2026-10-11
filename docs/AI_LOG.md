@@ -6,7 +6,7 @@ This is my running record of how I used AI on this project: what I asked for, wh
 
 - **Claude Code** in the terminal wrote most of the code, one small task at a time.
 - **A separate Claude chat** helped me plan the steps and review output before I accepted it.
-- **Gemini** (free tier) is the model inside the app's assistant.
+- **Gemini** is the model inside the app's assistant. I started on the free tier and moved to a paid one to run the evals.
 - `CLAUDE.md` holds the project rules. `docs/DECISIONS.md` holds my decisions.
 
 My loop for every step: ask for a plan or the tests first, read it, let it implement, run `npm run check`, read the diff, then run the real thing and look at the output myself.
@@ -134,9 +134,11 @@ Things I can explain about the design:
 - The flag codes in the answer come from my database, not from the model.
 - Everything Gemini-specific sits in one small adapter.
 
-**First real run.** I asked: "2 rooms in Krakow to buy, under 800k, I have a dog". It returned four listings and said all of them suit a dog. Only one lists pets as allowed. It never used the pets filter, didn't say it had dropped anything, and added details that aren't in the data ("green walking areas").
+### First real run
 
-**What I changed in the system prompt:**
+I asked: "2 rooms in Krakow to buy, under 800k, I have a dog". It returned four listings and said all of them suit a dog. Only one lists pets as allowed. It never used the pets filter, didn't say it had dropped anything, and added details that aren't in the data ("green walking areas").
+
+What I changed in the system prompt:
 
 - something the person needs (a dog, a car) becomes a feature filter in the first search
 - if a requested feature is dropped, that has to be recorded, and each reason has to say whether the listing has it
@@ -145,95 +147,55 @@ Things I can explain about the design:
 
 I also set the temperature to 0 so the same question gives nearly the same answer each time.
 
-**Same question after the change.** It searched with "pets allowed" (one match), tried a 15% higher budget (still one), then dropped the pets filter and said so. One listing is described as confirmed pet-friendly; the others say pets need to be checked. No invented details.
+The same question after the change: it searched with "pets allowed" (one match), tried a 15% higher budget (still one), then dropped the pets filter and said so. One listing is described as confirmed pet-friendly; the others say pets need to be checked. No invented details.
 
 That run used exactly as many model calls as my limit allowed, so I raised the limit from 6 to 8.
 
 One rule in the system prompt comes straight from the MCP test: "rooms is a minimum; if the person asks for an exact number, leave out bigger ones".
 
+### Testing the assistant in the browser
+
+After adding the endpoint and the panel I tried three requests.
+
+1. **"Write me a poem"**: no listings, and a message saying what it can help with. That's what I wanted for off-topic requests.
+
+2. **"2 rooms in Krakow to buy, under 800k, I have a dog"**: three listings, shown as the normal cards with real data from the database. The message says only the first one confirms pets, a "Loosened" line says the pet filter was dropped to find more results, and the reason under each card says whether pets are confirmed.
+
+3. **"House with garden in Warsaw under 1 million"**: it ended with "could not be completed". I assumed the agent was looping. The trace showed something else: every search came back empty, so it kept loosening filters until it ran out of steps. It also dropped the price limit and the property type, which my rules never allowed. I made three changes:
+   - the last allowed step is now a forced answer, so it can never end without one
+   - at most three searches, and it may not drop the price limit, the city, the offer type or the property type
+   - one extra search without the price limit is allowed, only to say what the closest option costs
+
+   Now it answers: no houses in Warsaw under 1 million, and the closest is a house with a garden in Ursynów at 1.72 million.
+
+**Two provider problems on the way.** First a 503 from Gemini (overloaded), then a 429: the free tier allows 20 requests per model per day, which is about three assistant questions. The app showed a plain error both times and the rest of the site kept working. I moved to a paid tier so the evals could run.
+
+What I take from this: read the trace before blaming the model.
+
 ## Step 12: evals
 
-Nine scenarios in evals/scenarios.json. Each one is a realistic request plus rules
-the answer has to meet. The rules are checked by code against the database, not by
-another model. Some rules apply to every scenario: the ids are real and not
-duplicates, at most five listings, any flagged listing is named in a warning, and
-the agent actually finished.
+Nine scenarios in `evals/scenarios.json`. Each one is a realistic request plus rules the answer has to meet. The rules are checked by code against the database, not by another model. Some rules apply to every scenario: the ids are real and not duplicates, at most five listings, any flagged listing is named in a warning, and the agent actually finished.
 
-Most scenarios come from things that went wrong when I tested by hand: the dog
-question, the Warsaw house, the cheapest flat in Warsaw.
+Most scenarios come from things that went wrong when I tested by hand: the dog question, the Warsaw house, the cheapest flat in Warsaw.
 
 **First full run:** 8 of 9 passed, 35 model calls.
 
 **What failed, and what passed but should not have:**
 
-- `polish-city-name` (failed): a request in Polish returned nothing. I guessed the
-  agent had passed the city in its inflected form. The trace showed it searched for
-  "Warszawa" every time and followed the loosening rules correctly, but every
-  search came back empty. Cause: search code. The city alias fix I thought I had
-  made earlier was never applied. Fixed in the search (aliases, including the
-  Polish forms used after "w") and in the tool (a hint listing the known cities).
+- `polish-city-name` (failed): a request in Polish returned nothing. I guessed the agent had passed the city in its inflected form. The trace showed it searched for "Warszawa" every time and followed the loosening rules correctly, but every search came back empty, including a plain "houses for sale in Warszawa". Cause: the search code. My data says "Warsaw", and the city alias fix I thought I had already made was never applied. That also explains test 3 in the browser: it only worked there because the model happened to write "Warsaw". Fixed in the search (aliases, including the Polish forms used after "w") and in the tool (a hint listing the known cities when it gets one it doesn't know).
 
-- `suspicious-price` (passed with a poor answer): "the cheapest flat to buy in
-  Warsaw" left out the two cheapest unflagged listings, both studios, because the
-  agent filtered on property type "apartment". My rules did not catch it. I changed
-  the system prompt ("flat" includes studios), made the scenario require listing
-  1060, and added a `mustInclude` check to the grader.
+- `suspicious-price` (passed with a poor answer): "the cheapest flat to buy in Warsaw" left out the two cheapest unflagged listings, both studios, because the agent filtered on property type "apartment". My rules did not catch it. I changed the system prompt ("flat" includes studios), made the scenario require listing 1060, and added a `mustInclude` check to the grader.
 
-**After the fixes:** 9 of 9, 31 model calls, on gemini-3.6-flash.
-Results are in docs/EVAL_RESULTS.md.
+**After the fixes:** 9 of 9, 31 model calls, on gemini-3.6-flash. Results are in `docs/EVAL_RESULTS.md`.
 
 **What I take from it:**
+
 - The eval caught a fix I believed was already done.
 - A passing eval only means the answer met the rules I wrote. I still read the answers.
-- I read the trace before changing anything; my first guess was wrong again.
-- What the checks cannot see: whether the written reasons are good, and whether a
-  different shortlist would have been better.
-  
-### Testing the assistant in the browser
+- My first guess about the cause was wrong again. The trace was right.
+- What the checks cannot see: whether the written reasons are good, and whether a different shortlist would have been better.
 
-I tried three requests in the panel.
-
-1. **"Write me a poem"**: it returned no listings and a message saying what it can help with. That is the behaviour I wanted for off-topic requests.
-
-2. **"2 rooms in Krakow to buy, under 800k, I have a dog"**: three listings, shown as the normal cards with real data from the database. The message says only the first one confirms pets, a "Loosened" line says the pet filter was dropped to find more results, and the reason under each card says whether pets are confirmed. This is the same question that overclaimed on the first run, now answering honestly.
-
-3. **"House with garden in Warsaw under 1 million"**: it ended with "could not be completed". I assumed the agent was looping. The trace showed the real cause: the model searched for "Warszawa" and my data says "Warsaw", so every search returned nothing, and it kept loosening filters until it ran out of steps. It was a search bug that would also hit a person typing the Polish name. I fixed it in three places:
-   - the search now understands city aliases (Warszawa, Cracow and so on)
-   - the search tool returns a hint listing the known cities when it gets one it does not know
-   - the agent's last step is a forced answer, so it can never end without one
-
-   I also limited it to three searches and stopped it from dropping the price limit or the property type, which it did in that trace although my rules never allowed it.
-   After the fixes it answers in a few steps: no houses in Warsaw under 1 million, and the closest is the one in Ursynów at 1.72 million. I added a rule that lets it make one extra search without the price limit only to report what the closest option costs.
-
-**Two provider problems on the way:** a 503 from Gemini (overloaded) and then a 429 (free-tier daily quota: 20 requests per model per day, about three assistant questions).Added Billing.
-
-What I take from this: read the trace before blaming the model. My first guess about test 3 was wrong.
-
-## Step 12: evals
-
-Nine scenarios in evals/scenarios.json. Each is a realistic request plus rules the
-answer has to meet. The rules are checked by code against the database, not by
-another model. Some rules apply to every scenario: the ids are real and not
-duplicates, at most five listings, any flagged listing is named in a warning,
-and the agent actually finished.
-
-Most scenarios come from things that went wrong when I tested by hand: the dog
-question (overclaiming), the Warsaw house (Polish city name), the cheapest flat
-in Warsaw (a listing with a suspicious price).
-
-**First run:** X of 9 passed.
-
-**What failed and why:**
-
-- `<scenario id>`: what the agent did. Cause: [system prompt / tool description /
-  search code / my expectation was wrong]. What I changed.
-- ...
-
-**After the fixes:** X of 9 passed, about N model calls for the full run, on
-<model id>.
-
-**What I noticed:** [anything that passed once and failed once; anything the
-checks cannot see]
+---
 
 ## What I learned about working this way
 
@@ -246,3 +208,4 @@ checks cannot see]
 - When the agent loops on something that keeps failing, I stop it and give it the missing fact.
 - I start a new session for each big step. Long sessions get worse.
 - The first real run of anything with a model in it will be wrong in some way. That's what the evals are for.
+- When an AI feature gives a wrong answer, the cause is not always the model. Twice it was my own search code.

@@ -65,7 +65,7 @@ Cost: Vague words like "sunny" or "cosy" only match if they appear in the descri
 ## D-09 Agent as a hand-written tool loop, no framework
 Status: accepted
 Context: The workflow is short: understand the request, search, loosen filters if there are too few results, compare, answer.
-Decision: A loop written directly on the Google Gen AI SDK, limited to 8 model calls. The loop talks to a small client interface; everything specific to Gemini sits in one adapter. Whatever the model does is treated as untrusted: an unknown tool, bad arguments or an invalid final answer is sent back to it as an error and the loop continues; invented or duplicate ids are removed from the result. Temporary provider errors (overloaded, short rate limits) are retried twice; a used-up daily quota is reported to the user as such. Temperature is 0 so runs are as repeatable as possible.
+Decision: A loop written directly on the Google Gen AI SDK, limited to 8 model calls. The loop talks to a small client interface; everything specific to Gemini sits in one adapter. Whatever the model does is treated as untrusted: an unknown tool, bad arguments or an invalid final answer is sent back to it as an error and the loop continues; invented or duplicate ids are removed from the result. If the provider fails (overloaded, quota used up), the user gets a plain error message and the rest of the site keeps working. Temperature is 0 so runs are as repeatable as possible.
 Alternatives: An agent framework (rejected: more abstraction to explain and debug, and this workflow does not need it). Another provider (any model with function calling would work; I used Gemini, and a second provider means one more adapter. I did not add adapters I could not test).
 Cost: Tracing has to be added by hand if needed. Only one provider is supported today. One request makes about 4 to 8 model calls, which on a free tier is a hard limit on usage; I moved to a paid tier to run the evals. The limit was 6 at first; a request that loosens two constraints and inspects candidates used all 6, so I raised it.
 
@@ -86,9 +86,9 @@ Cost: It only works for MCP clients on the same machine. The agent compares list
 ## D-12 Scenario-based evals with rule-based checks
 Status: accepted
 Context: The agent's behaviour needs a simple, repeatable check.
-Decision: A file of scenarios (`evals/scenarios.json`), each with a query and expected results. `evals/run.ts` runs them and checks returned IDs, whether results match the constraints, and whether required warnings are present.
-Alternatives: Using an LLM to grade the answers (rejected: slower and less consistent, and not needed to check IDs and constraints).
-Cost: It does not judge the quality of the written explanation. Agent output varies between runs, so a scenario can pass once and fail once.
+Decision: Nine scenarios in `evals/scenarios.json`, each a request plus rules the answer has to meet. `evals/run.ts` runs them against the real agent, and `evals/check.ts` checks the answers with code against the database. Checked for every scenario: the ids are real and not duplicates, at most five listings, any flagged listing is named in a warning, and the agent finished with a real answer. Per scenario: the city, the allowed ids, required ids, and whether a requested feature is met or recorded as loosened. Most scenarios were added after a real failure in manual testing. The grader itself has unit tests. Latest result: 9/9, see `docs/EVAL_RESULTS.md`.
+Alternatives: Using an LLM to grade the answers (rejected for now: slower and less consistent, and not needed to check ids and constraints).
+Cost: It does not judge the quality of the written reasons, or whether a different shortlist would have been better: one scenario passed with a poor answer until I tightened it. Agent output varies between runs, so a scenario can pass once and fail once. A full run makes about 30 to 35 model calls.
 
 ## D-13 Search runs in memory, not in SQL
 Status: accepted
@@ -149,14 +149,14 @@ Cost: It only helps with finding and comparing. It answers one request at a time
 ## D-21 The agent must be honest about what the data confirms
 Status: accepted
 Context: On the first real run, asked for a flat for someone with a dog, the agent returned four listings and said all were suitable. Only one lists pets as allowed. It also added details that are not in the data.
-Decision: Rules in the system prompt: a stated need becomes a feature filter in the first search; if that feature is dropped it is recorded as loosened, and each reason says whether the listing has it; only facts from the tool results; at most three searches; never drop the price limit, the city, the offer type or the property type. One extra search without the price limit is allowed only to report what the closest option costs.
+Decision: Rules in the system prompt: a stated need becomes a feature filter in the first search; if that feature is dropped it is recorded as loosened, and each reason says whether the listing has it; only facts from the tool results; at most three searches; never drop the price limit, the city, the offer type or the property type; "flat" includes studios. One extra search without the price limit is allowed only to report what the closest option costs.
 Alternatives: Filter strictly and return only confirmed matches (rejected: one result is a poor shortlist, and "ask the owner about pets" is a useful answer when it is labelled as such).
 Cost: These are prompt rules, so a model can still break them. The evals check the main ones.
 
 ## D-22 City names have aliases
 Status: accepted
-Context: A request for a house in Warsaw failed because the model searched for "Warszawa" and the data says "Warsaw". A person typing the Polish name into the search box would have hit the same thing.
-Decision: City normalization maps known aliases (Warszawa, Cracow and others) to the canonical name. The search applies it to the city filter and to the free-text query.
+Context: A request in Polish for a house in Warsaw returned nothing because the model searched for "Warszawa" and the data says "Warsaw". An eval scenario caught it. A person typing the Polish name into the search box would have hit the same thing.
+Decision: Each city has one stored name, the spelling the source data used most (Warsaw, Kraków, Gdańsk, Wrocław, Poznań, Łódź). City normalization maps known variants to it: Warszawa, Cracow, and the Polish forms used after "w", such as Warszawie. The search applies it to the city filter and to the free-text query, so the data and the search input go through the same cleanup.
 Alternatives: Tell the model which names to use and leave the search as it was (rejected: it would fix the agent and leave the same problem for people).
 Cost: The alias list is maintained by hand.
 
@@ -174,6 +174,7 @@ Cost: The alias list is maintained by hand.
 - **Currency conversion:** the one EUR listing is flagged, not converted.
 - **Pagination:** not needed for about 100 listings; the website shows all matches.
 - **Deployment:** the app runs locally.
+- **Custom skills for Claude Code:** the workflow is small enough that `CLAUDE.md` covers it.
 
 ## Known issues
 
@@ -183,6 +184,9 @@ Cost: The alias list is maintained by hand.
 - There is no "exactly N rooms" filter; rooms is a minimum. The agent leaves out larger results itself.
 - The assistant takes several seconds per request and answers one request at a time.
 - The assistant panel and the filter form are checked by hand; there are no browser tests.
+- Typos in the search box are not corrected ("Krakw" finds nothing). The assistant handles them, because the model corrects the spelling before searching.
+- The stored city names are mixed: "Warsaw" is English and the other five are Polish spellings, because that is how the source data has them.
+- Provider errors are not retried inside the app; the user is asked to try again.
 
 ## Future
 
@@ -200,6 +204,10 @@ Cost: The alias list is maintained by hand.
 - **Incremental ingest:** add or update single listings through the same normalization instead of a full rebuild.
 - **Follow-up questions:** let the person refine a shortlist ("cheaper ones", "what about Podgórze").
 - **Browser tests** for the assistant panel and the filters.
+- **Typo tolerance:** fuzzy matching for city names and search terms, and a "did you mean" when a search returns nothing.
+- **City names per language:** store a city id and show the name in the user's language.
+- **Retries:** retry temporary provider errors a couple of times before showing an error.
+- **Better evals:** more scenarios, each run several times, and a model-based check for the quality of the written reasons.
 
 ## Changes of mind
 
@@ -210,3 +218,4 @@ Cost: The alias list is maintained by hand.
 - **Step limit (D-09):** 6 model calls looked generous. A real request used all 6, so it is now 8, with a forced answer on the last one (D-14).
 - **Free tier (D-09):** I started on Gemini's free tier. Twenty requests per model per day is about three assistant questions, which cannot cover an eval run, so I moved to a paid tier.
 - **Agent rules (D-21):** my first system prompt trusted the model to be careful about what it claimed. The first real run showed it was not, so the rules became explicit.
+- **Where the bug was (D-22):** twice I assumed the agent was at fault when it returned nothing for Warsaw. Both times the trace showed the agent was doing the right thing and my search did not know the city name.
