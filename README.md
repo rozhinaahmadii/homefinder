@@ -180,7 +180,7 @@ A request nothing fits. It says so, and names the closest option from the data:
 
 ### Showing that it works: evals
 
-`npm run eval` sends nine realistic requests to the real agent. Each has rules the answer must meet, and the rules are checked by code against the database: the listings exist, are in the right city, match the request, flagged listings are named in a warning, the agent finished, and it didn't try to submit any id that had to be removed. No second model grades the answers, The answers are checked by plain code, not by another AI.
+`npm run eval` sends nine realistic requests to the real agent. Each has rules the answer must meet, and the rules are checked by code against the database: the listings exist, are in the right city, match the request, flagged listings are named in a warning, the agent finished, and it didn't try to submit any id that had to be removed. No second model grades the answers, the answers are checked by plain code, not by another AI.
 
 Most scenarios come from failures I found while testing by hand:
 
