@@ -67,7 +67,7 @@ Status: accepted
 Context: The workflow is short: understand the request, search, loosen filters if there are too few results, compare, answer.
 Decision: A loop written directly on the Google Gen AI SDK, limited to 8 model calls. The loop talks to a small client interface; everything specific to Gemini sits in one adapter. Whatever the model does is treated as untrusted: an unknown tool, bad arguments or an invalid final answer is sent back to it as an error and the loop continues; ids that don't exist or point to a listing marked as a duplicate are removed. If the provider fails (overloaded, quota used up), the user gets a plain error message and the rest of the site keeps working. Temperature is 0 so runs are as repeatable as possible.
 Alternatives: An agent framework (rejected: more abstraction to explain and debug, and this workflow does not need it). Another provider (any model with function calling would work; I used Gemini, and a second provider means one more adapter. I did not add adapters I could not test).
-Cost: Tracing has to be added by hand if needed. Only one provider is supported today. One request makes 1 to 8 model calls (3 to 5 in the latest eval run), which on a free tier is a hard limit on usage; I moved to a paid tier to run the evals. The limit was 6 at first; a request that loosens two constraints and inspects candidates used all 6, so I raised it.
+Cost: Tracing has to be added by hand if needed. Only one provider is supported today. One request makes 1 to 8 model calls (1 to 5 in the latest eval run), which on a free tier is a hard limit on usage; I moved to a paid tier to run the evals. The limit was 6 at first; a request that loosens two constraints and inspects candidates used all 6, so I raised it.
 
 ## D-10 The agent returns IDs and reasons; the UI shows the facts
 Status: accepted
@@ -186,7 +186,7 @@ Cost: The alias list is maintained by hand.
 - The assistant panel and the filter form are checked by hand; there are no browser tests.
 - Typos in the search box are not corrected ("Krakw" finds nothing). The assistant handles them, because the model corrects the spelling before searching.
 - The stored city names are mixed: "Warsaw" is English and the other five are Polish spellings, because that is how the source data has them.
-- Provider errors are not retried inside the app; the user is asked to try again. The eval runner is the exception: it retries a temporary error (503, or a 429 with a short retry delay) once after 30 seconds, and stops the run when the daily quota is used up.
+- Provider errors are not retried inside the app; the user is asked to try again. The eval runner is the exception: it retries a temporary error (503, or a 429 that isn't the daily quota) once after 30 seconds, and stops the run when the daily quota is used up.
 
 ## Future
 
@@ -206,9 +206,8 @@ Cost: The alias list is maintained by hand.
 - **Browser tests** for the assistant panel and the filters.
 - **Typo tolerance:** fuzzy matching for city names and search terms, and a "did you mean" when a search returns nothing.
 - **City names per language:** store a city id and show the name in the user's language.
-- **Retries:** retry temporary provider errors a couple of times before showing an error.
-- **Better evals:** more scenarios, each run several times, and a model-based check for the quality of the written reasons.
 - **Retries:** retry temporary provider errors in the app too, as the eval runner already does.
+- **Better evals:** more scenarios, each run several times, and a model-based check for the quality of the written reasons.
 
 ## Changes of mind
 

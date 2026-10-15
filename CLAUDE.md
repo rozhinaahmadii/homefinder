@@ -45,7 +45,7 @@ Rules that hold the design together:
 - One search implementation in `src/core/search.ts`. The API, the MCP server and the agent all call it. Never add a second filtering path, including in the browser.
 - Only `server/db.ts` contains SQL.
 - Tools are defined once in `server/tools.ts` (name, description, Zod schema, handler). The MCP server and the agent both register from that list.
-- The agent returns listing IDs and reasoning only. The UI renders prices, areas and other facts from the store, never from model output.
+- The agent returns listing IDs, reasons and short notes (message, assumptions, loosened filters, warnings). The UI renders prices, areas and other facts from the store, never from model output.
 - The app must work with no API key. The assistant is an enhancement.
 - `server/mcp.ts` must never write to stdout except protocol messages. Log to stderr.
 

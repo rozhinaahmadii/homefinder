@@ -147,7 +147,7 @@ What I changed in the system prompt:
 
 I also set the temperature to 0 so the same question gives nearly the same answer each time.
 
-The same question after the change: it searched with "pets allowed" (one match), tried a 15% higher budget (still one), then dropped the pets filter and said so. One listing is described as confirmed pet-friendly; the others say pets need to be checked. No invented details.
+The same question after the change: it searched with “pets allowed” (two matches, one of them a 3-room flat that it didn’t include), tried a 15% higher budget, then dropped the pets filter and said so. One listing is described as confirmed pet-friendly; the others say pets need to be checked. No invented details.
 
 That run used exactly as many model calls as my limit allowed, so I raised the limit from 6 to 8.
 
