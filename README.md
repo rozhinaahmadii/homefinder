@@ -1,8 +1,18 @@
 # Homefinder
 
-A small real estate listings app for Polish cities. This is my solution to the task "Improve an existing real estate product".
+My solution to the task "Improve an existing real estate product".
 
-In short: the starter had unreliable data and a search that broke easily. I fixed the data first, rebuilt search on a small backend, made data problems visible to users, and added an MCP server and a search assistant that both use the same search.
+The starter looked like it worked, but the data underneath was unreliable: prices stored as text, six cities spelled ten ways, three duplicate listings, and listings that contradict themselves (floor 14 of 4, an area of 3.45 m², a flat for sale at 4,500 PLN). Search, and any AI feature built on that data, would give wrong answers with confidence.
+
+So I put the data first. One rule runs through the whole project: **fix what is unambiguous, flag what would be a guess, and never hide either from the user.**
+
+- **Ingest** cleans the 100 listings with tested rules, keeps doubtful values unchanged and flags them (15 listings).
+- **Search** is one function used by the website, the MCP server and the assistant, so all three give the same answers.
+- **The page** shows a warning on flagged listings instead of presenting them as fact.
+- **The assistant** turns a request in plain language into a shortlist, passes the warnings on, and says when it loosened something you asked for.
+- **Evals** check that behaviour with code against the database: 9 of 9 scenarios pass, and most of them come from failures I found while testing.
+
+What I left out, and why, is in section 3. Each decision, with the alternatives I rejected, is in [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ## How to run it
 
@@ -170,7 +180,7 @@ A request nothing fits. It says so, and names the closest option from the data:
 
 ### Showing that it works: evals
 
-`npm run eval` sends nine realistic requests to the real agent. Each has rules the answer must meet, and the rules are checked by code against the database: the listings exist, are in the right city, match the request, flagged listings are named in a warning, the agent finished, and it didn't try to submit any id that had to be removed.
+`npm run eval` sends nine realistic requests to the real agent. Each has rules the answer must meet, and the rules are checked by code against the database: the listings exist, are in the right city, match the request, flagged listings are named in a warning, the agent finished, and it didn't try to submit any id that had to be removed. No second model grades the answers, The answers are checked by plain code, not by another AI.
 
 Most scenarios come from failures I found while testing by hand:
 

@@ -45,5 +45,4 @@ real answer.
 - `suspicious-price` passed on the first run with a poor answer (it skipped two
   cheaper studios). I tightened the scenario and the prompt.
 - Run it yourself with `npm run eval`. A full run makes about 30 to 35 model calls.
-- Results can vary slightly between runs because a model is involved.# Eval results
-
+- Results can vary slightly between runs because a model is involved.
