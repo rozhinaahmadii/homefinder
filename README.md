@@ -6,7 +6,7 @@ In short: the starter had unreliable data and a search that broke easily. I fixe
 
 ## How to run it
 
-You need Node.js 20.19+ or 22.12+ and npm.
+You need Node.js 22.12 or newer and npm.
 
 ```bash
 npm install
@@ -35,13 +35,13 @@ A note on keys: one question to the assistant makes several model calls, and a f
 
 ## 1. What problems I identified
 
-Before changing anything I wrote a script that only reads the data and reports what is wrong. The full list is in [docs/DATA_AUDIT.md](docs/DATA_AUDIT.md).
+Before changing anything, I had Claude Code write a script that only reads the data and lists what's wrong. The full list is in [docs/DATA_AUDIT.md](docs/DATA_AUDIT.md).
 
 **The data could not be trusted.** In 100 listings I found:
 
 - prices and areas stored as text: `"460 tys. zł"`, `"PLN 740,000"`, `"199 m2"`
 - six cities spelled ten ways: `kraków`, `Kraków ` (with a space), `Gdansk`, `WROCŁAW`
-- three duplicates: an exact copy, a repost with a lower price, and the same flat listed by two agents
+- three duplicates: the same flat posted twice, a repost with a lower price, and the same flat listed by two agents
 - listings that contradict themselves: floor 14 of 4; an area of 3.45 m²; "without a lift" in the text but "elevator" in the features; a flat for sale at 4,500 PLN
 - one price in EUR, Polish feature names mixed with English ones, a missing image file, a publication date in 2027
 
@@ -150,12 +150,12 @@ I tested it from Claude Code by asking for 2-room flats for sale in Kraków unde
 
 **Its goal:** turn a request in plain language into a shortlist of up to five listings, each with a reason, plus warnings where the data is doubtful.
 
-It is a loop I wrote directly on the Gemini SDK, without a framework (`server/agent.ts`):
+It's a simple loop built directly on the Gemini SDK, no framework (`server/agent.ts`):
 
 - The model can call the two tools. It must finish by calling a third one, `submit_shortlist`.
 - It gets at most 8 model calls. On the last one it can only submit, so it always gives an answer.
-- **Nothing the model says is trusted.** If it asks for a tool that does not exist or gives an invalid answer, it is told so and continues. Made-up and duplicate listing ids are removed.
-- It returns ids and reasons only. The page shows prices, areas and warnings from the database, never from the model.
+- **Nothing the model says is trusted.** If it asks for a tool that does not exist or gives an invalid answer, it is told so and continues. Ids that don't exist, or that point to a listing marked as a duplicate, are removed.
+- It returns listing ids, a reason for each, and short notes (warnings, what it loosened). Prices, areas and the "Check details" badge always come from the database, not from the model.
 - Rules in its instructions: something the person needs (a dog, a car) becomes a filter; if it loosens a requirement it says so; it states only what the data confirms; when nothing fits it says what the closest option costs.
 
 Everything specific to Gemini sits in one small adapter, so another provider would mean one more adapter.
@@ -170,7 +170,7 @@ A request nothing fits. It says so, and names the closest option from the data:
 
 ### Showing that it works: evals
 
-`npm run eval` sends nine realistic requests to the real agent. Each has rules the answer must meet, and the rules are checked by code against the database: the listings exist, are in the right city, match the request, flagged listings are named in a warning, and the agent finished. No second model grades the answers.
+`npm run eval` sends nine realistic requests to the real agent. Each has rules the answer must meet, and the rules are checked by code against the database: the listings exist, are in the right city, match the request, flagged listings are named in a warning, the agent finished, and it didn't try to submit any id that had to be removed.
 
 Most scenarios come from failures I found while testing by hand:
 

@@ -29,7 +29,7 @@ Cost: Users see some listings with warnings.
 
 ## D-04 Find duplicates by matching key fields
 Status: accepted
-Context: The data has exact copies (1016/1059), reposts with a new price (1027/1084), and the same flat listed by two agents (1050/1111).
+Context: The data has the same flat posted twice (1016/1059), reposts with a new price (1027/1084), and the same flat listed by two agents (1050/1111).
 Decision: Group listings with the same normalized address, city, area, rooms, floor and offer type. The newest one is kept as the main listing; on the same date, the lowest id. The others get a `duplicateOf` field and are hidden from search results, but stay reachable by id. Listings whose address has no house number are never grouped.
 Alternatives: Delete duplicates (rejected: loses the second agent's contact and the record of what was in the data).
 Cost: The second agent's contact is not shown for now.
@@ -65,9 +65,9 @@ Cost: Vague words like "sunny" or "cosy" only match if they appear in the descri
 ## D-09 Agent as a hand-written tool loop, no framework
 Status: accepted
 Context: The workflow is short: understand the request, search, loosen filters if there are too few results, compare, answer.
-Decision: A loop written directly on the Google Gen AI SDK, limited to 8 model calls. The loop talks to a small client interface; everything specific to Gemini sits in one adapter. Whatever the model does is treated as untrusted: an unknown tool, bad arguments or an invalid final answer is sent back to it as an error and the loop continues; invented or duplicate ids are removed from the result. If the provider fails (overloaded, quota used up), the user gets a plain error message and the rest of the site keeps working. Temperature is 0 so runs are as repeatable as possible.
+Decision: A loop written directly on the Google Gen AI SDK, limited to 8 model calls. The loop talks to a small client interface; everything specific to Gemini sits in one adapter. Whatever the model does is treated as untrusted: an unknown tool, bad arguments or an invalid final answer is sent back to it as an error and the loop continues; ids that don't exist or point to a listing marked as a duplicate are removed. If the provider fails (overloaded, quota used up), the user gets a plain error message and the rest of the site keeps working. Temperature is 0 so runs are as repeatable as possible.
 Alternatives: An agent framework (rejected: more abstraction to explain and debug, and this workflow does not need it). Another provider (any model with function calling would work; I used Gemini, and a second provider means one more adapter. I did not add adapters I could not test).
-Cost: Tracing has to be added by hand if needed. Only one provider is supported today. One request makes about 4 to 8 model calls, which on a free tier is a hard limit on usage; I moved to a paid tier to run the evals. The limit was 6 at first; a request that loosens two constraints and inspects candidates used all 6, so I raised it.
+Cost: Tracing has to be added by hand if needed. Only one provider is supported today. One request makes 1 to 8 model calls (3 to 5 in the latest eval run), which on a free tier is a hard limit on usage; I moved to a paid tier to run the evals. The limit was 6 at first; a request that loosens two constraints and inspects candidates used all 6, so I raised it.
 
 ## D-10 The agent returns IDs and reasons; the UI shows the facts
 Status: accepted
@@ -86,7 +86,7 @@ Cost: It only works for MCP clients on the same machine. The agent compares list
 ## D-12 Scenario-based evals with rule-based checks
 Status: accepted
 Context: The agent's behaviour needs a simple, repeatable check.
-Decision: Nine scenarios in `evals/scenarios.json`, each a request plus rules the answer has to meet. `evals/run.ts` runs them against the real agent, and `evals/check.ts` checks the answers with code against the database. Checked for every scenario: the ids are real and not duplicates, at most five listings, any flagged listing is named in a warning, and the agent finished with a real answer. Per scenario: the city, the allowed ids, required ids, and whether a requested feature is met or recorded as loosened. Most scenarios were added after a real failure in manual testing. The grader itself has unit tests. Latest result: 9/9, see `docs/EVAL_RESULTS.md`.
+Decision: Nine scenarios in `evals/scenarios.json`, each a request plus rules the answer has to meet. `evals/run.ts` runs them against the real agent, and `evals/check.ts` checks the answers with code against the database. Checked for every scenario: the ids are real and not duplicates, at most five listings, any flagged listing is named in a warning, the agent finished with a real answer, and it didn't submit any id that had to be removed. Per scenario: the city, the allowed ids, required ids, and whether a requested feature is met, or the agent said it loosened something (the check doesn't confirm it was that exact feature). Most scenarios were added after a real failure in manual testing. The grader itself has unit tests. Latest result: 9/9, see `docs/EVAL_RESULTS.md`.
 Alternatives: Using an LLM to grade the answers (rejected for now: slower and less consistent, and not needed to check ids and constraints).
 Cost: It does not judge the quality of the written reasons, or whether a different shortlist would have been better: one scenario passed with a poor answer until I tightened it. Agent output varies between runs, so a scenario can pass once and fail once. A full run makes about 30 to 35 model calls.
 
@@ -100,7 +100,7 @@ Cost: Every search reads all rows. Fine for 100 listings. With much more data, t
 ## D-14 The agent finishes by calling `submit_shortlist`
 Status: accepted
 Context: The UI needs structured data it can validate, not free text.
-Decision: The agent has a final tool, `submit_shortlist`, that it must call to return its shortlist, assumptions, loosened filters and warnings. The result is validated, and unknown or duplicate IDs are removed. On the last allowed step only this tool is offered and a call is required, so the agent cannot run out of steps without answering.
+Decision: The agent has a final tool, `submit_shortlist`, that it must call to return its shortlist, assumptions, loosened filters and warnings. The result is validated, and ids that don't exist or point to a duplicate listing are removed. On the last allowed step only this tool is offered and a call is required, so the agent cannot run out of steps without answering.
 Alternatives: Reading JSON out of a text reply (rejected: breaks easily). Relying on the prompt alone to make it finish (rejected after a real run ended with "could not be completed").
 Cost: If even the forced final answer is invalid, the user gets a "could not be completed" message.
 
@@ -156,7 +156,7 @@ Cost: These are prompt rules, so a model can still break them. The evals check t
 ## D-22 City names have aliases
 Status: accepted
 Context: A request in Polish for a house in Warsaw returned nothing because the model searched for "Warszawa" and the data says "Warsaw". An eval scenario caught it. A person typing the Polish name into the search box would have hit the same thing.
-Decision: Each city has one stored name, the spelling the source data used most (Warsaw, Kraków, Gdańsk, Wrocław, Poznań, Łódź). City normalization maps known variants to it: Warszawa, Cracow, and the Polish forms used after "w", such as Warszawie. The search applies it to the city filter and to the free-text query, so the data and the search input go through the same cleanup.
+Decision: Each city has one stored name, the spelling the source data used most (Warsaw, Kraków, Gdańsk, Wrocław, Poznań, Łódź). City normalization maps known variants to it: Warszawa, Cracow, the old German names (Krakau, Danzig, Breslau, Posen), and the Polish forms used after "w", like Warszawie. The search applies it to the city filter and to the free-text query, so the data and the search input go through the same cleanup.
 Alternatives: Tell the model which names to use and leave the search as it was (rejected: it would fix the agent and leave the same problem for people).
 Cost: The alias list is maintained by hand.
 
@@ -167,7 +167,7 @@ Cost: The alias list is maintained by hand.
 - **Frontend framework:** kept vanilla TypeScript and spent the time on data, search and the agent.
 - **Accounts and login:** not needed to find and compare listings.
 - **Maps:** left out; the city filter and text search cover location for now.
-- **District filter:** districts are matched by the text search; a dedicated select was cut for time.
+- **District dropdown:** the search and the tool already accept a district filter, but the page has no dropdown for it. People use the text search instead.
 - **Embeddings and vector search:** see D-08.
 - **Comparison page and comparison tool:** the assistant compares listings from their details. See D-11.
 - **Price statistics:** no "compared with the city median" figure in the UI or as a tool. Medians are only used internally to detect price outliers.
@@ -186,7 +186,7 @@ Cost: The alias list is maintained by hand.
 - The assistant panel and the filter form are checked by hand; there are no browser tests.
 - Typos in the search box are not corrected ("Krakw" finds nothing). The assistant handles them, because the model corrects the spelling before searching.
 - The stored city names are mixed: "Warsaw" is English and the other five are Polish spellings, because that is how the source data has them.
-- Provider errors are not retried inside the app; the user is asked to try again.
+- Provider errors are not retried inside the app; the user is asked to try again. The eval runner is the exception: it retries a temporary error (503, or a 429 with a short retry delay) once after 30 seconds, and stops the run when the daily quota is used up.
 
 ## Future
 
@@ -208,6 +208,7 @@ Cost: The alias list is maintained by hand.
 - **City names per language:** store a city id and show the name in the user's language.
 - **Retries:** retry temporary provider errors a couple of times before showing an error.
 - **Better evals:** more scenarios, each run several times, and a model-based check for the quality of the written reasons.
+- **Retries:** retry temporary provider errors in the app too, as the eval runner already does.
 
 ## Changes of mind
 
