@@ -20,6 +20,8 @@ Model: `gemini-3.6-flash`
 
 **9 / 9 passed, 31 model calls, model gemini-3.6-flash**
 
+- Re-run on 2026-10-15 after fixing the formatting of the system prompt: 9/9, 32 model calls.
+
 ## What each scenario checks
 
 | Scenario | Request | What it protects against |
